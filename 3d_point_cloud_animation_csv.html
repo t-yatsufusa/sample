@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.2/d3.min.js"></script>
+    <title>3D Point Cloud with Time Filter (CSV)</title>
+</head>
+<body>
+    <div id="plot" style="height: 600px;"></div>
+    <br>
+    <label for="timeSlider">基準時刻の設定 (t): </label>
+    <input type="range" id="timeSlider" min="0" max="100" value="0" step="0.0000001" style="width: 80%;">
+    <span id="timeValue">0.00000000</span>
+    
+    <script>
+        // CSVファイルのパス
+        const csvFile = "data.csv";
+
+        // CSVデータを読み込む
+        d3.csv(csvFile).then(data => {
+            // データを数値型に変換
+            data.forEach(d => {
+                d.x = +d.x;
+                d.y = +d.y;
+                d.z = +d.z;
+                d.t = +d.t;
+                d.v = +d.v;
+            });
+
+            // x, y, z の最大値と最小値を取得
+            const xRange = [d3.min(data, d => d.x), d3.max(data, d => d.x)];
+            const yRange = [d3.min(data, d => d.y), d3.max(data, d => d.y)];
+            const zRange = [d3.min(data, d => d.z), d3.max(data, d => d.z)];
+
+            // vの平均値と標準偏差を計算
+            const vValues = data.map(d => d.v);
+            const vMean = d3.mean(vValues);
+            const vStdDev = d3.deviation(vValues);
+
+            // vの範囲を変更された計算方法で設定
+            const vMin = Math.max(vMean - 2 * vStdDev, d3.min(vValues)); // 最小値を変更
+            const vMax = Math.min(vMean + 2 * vStdDev, d3.max(vValues)); // 最大値を変更
+
+            // 時刻データの範囲を取得
+            const timeRange = d3.extent(data, d => d.t);
+
+            // 初期基準時刻を最大時刻に設定
+            let baseTime = timeRange[1];
+
+            const timeSlider = document.getElementById('timeSlider');
+            const timeValue = document.getElementById('timeValue');
+
+            // スライドバーの設定
+            timeSlider.min = timeRange[0];
+            timeSlider.max = timeRange[1];
+            timeSlider.value = baseTime;
+            timeValue.textContent = baseTime.toFixed(8);
+
+            // グラフの縦横比を考慮
+            const aspectRatioX = xRange[1] - xRange[0];
+            const aspectRatioY = yRange[1] - yRange[0];
+            const aspectRatioZ = zRange[1] - zRange[0];
+
+            // 最大範囲に合わせたズームアウト距離
+            const cameraDistance = Math.max(aspectRatioX, aspectRatioY, aspectRatioZ) * 2.5; // ズームアウトの範囲を広げる
+
+            // z軸の表示範囲をさらに広げるための調整
+            const expandedZRange = [zRange[0] - (aspectRatioZ * 0.5), zRange[1] + (aspectRatioZ * 0.5)];
+
+            // カメラ設定の初期値 (z軸上から)
+            let currentCamera = {
+                eye: { x: 0, y: 0, z: cameraDistance }, // z軸上からの視点
+                up: { x: 0, y: 0, z: 1 },
+                center: { x: (xRange[0] + xRange[1]) / 2, y: (yRange[0] + yRange[1]) / 2, z: (zRange[0] + zRange[1]) / 2 }
+            };
+
+            // 時刻スライダーの変更イベント
+            timeSlider.addEventListener('input', function() {
+                baseTime = +this.value;
+                timeValue.textContent = baseTime.toFixed(8);
+
+                // 現在のカメラ状態を取得
+                const plot = document.getElementById('plot');
+                currentCamera = plot.layout.scene.camera; // 新しいカメラ設定を反映
+
+                updatePlot();
+            });
+
+            // 3Dプロットの更新
+            function updatePlot() {
+                // 時刻データが基準時刻よりも前のデータのみをフィルタリング
+                const filteredData = data.filter(d => d.t <= baseTime);
+
+                // プロット用データ
+                const plotData = [{
+                    type: "scatter3d",
+                    mode: "markers",
+                    x: filteredData.map(d => d.x),
+                    y: filteredData.map(d => d.y),
+                    z: filteredData.map(d => d.z),
+                    marker: {
+                        size: 5,
+                        color: filteredData.map(d => d.v),  // vを基に色を設定
+                        colorscale: "Rainbow",
+                        cmin: vMin,
+                        cmax: vMax,
+                        opacity: 0.8,
+                        colorbar: {
+                            title: "v",
+                            tickvals: [vMin, vMax],
+                            ticktext: [vMin.toFixed(2), vMax.toFixed(2)],
+                        }
+                    }
+                }];
+
+                // レイアウト設定
+                const layout = {
+                    scene: {
+                        xaxis: { title: "X Axis", range: xRange },
+                        yaxis: { title: "Y Axis", range: yRange },
+                        zaxis: { title: "Z Axis", range: expandedZRange }, // z軸範囲の拡大
+                        aspectmode: "manual",
+                        aspectratio: {
+                            x: aspectRatioX,
+                            y: aspectRatioY,
+                            z: aspectRatioZ
+                        },
+                        camera: currentCamera // 新しいカメラ設定を適用
+                    },
+                    title: "3D Point Cloud"
+                };
+
+                // プロットを更新
+                Plotly.newPlot("plot", plotData, layout).then(plot => {
+                    // プロット更新後、カメラ設定を再適用
+                    currentCamera = plot.layout.scene.camera;
+                });
+            }
+
+            // 初期表示
+            updatePlot();
+        }).catch(error => console.error("Error loading CSV data:", error));
+    </script>
+</body>
+</html>
