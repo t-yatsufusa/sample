@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.2/d3.min.js"></script>
-    <title>3D Point Cloud with Adjustable Range</title>
+    <title>3D Point Cloud with Fixed Magnification</title>
 </head>
 <body>
     <div id="plot" style="height: 600px;"></div>
@@ -13,10 +13,6 @@
     <label for="timeSlider">基準時刻の設定 (t): </label>
     <input type="range" id="timeSlider" min="0" max="100" value="0" step="0.0000001" style="width: 80%;">
     <span id="timeValue">0.00000000</span>
-    <br><br>
-    <label for="scaleSlider">拡大倍率: </label>
-    <input type="range" id="scaleSlider" min="1" max="5" value="2" step="0.1" style="width: 80%;">
-    <span id="scaleValue">2.0</span>
     <br><br>
     <label for="minRangeSlider">カラーレンジ最小値 (v_min): </label>
     <input type="range" id="minRangeSlider" min="0" max="100" value="0" step="0.1" style="width: 80%;">
@@ -49,8 +45,8 @@
             const zMin = d3.min(data, d => d.z);
             const zMax = d3.max(data, d => d.z);
 
-            // 初期倍率とカラーレンジ
-            let scale = 2;
+            // 拡大倍率を2に固定
+            const scale = 2;
             let vMinManual = d3.min(data, d => d.v);
             let vMaxManual = d3.max(data, d => d.v);
 
@@ -64,8 +60,6 @@
 
             const timeSlider = document.getElementById('timeSlider');
             const timeValue = document.getElementById('timeValue');
-            const scaleSlider = document.getElementById('scaleSlider');
-            const scaleValue = document.getElementById('scaleValue');
             const minRangeSlider = document.getElementById('minRangeSlider');
             const minRangeValue = document.getElementById('minRangeValue');
             const maxRangeSlider = document.getElementById('maxRangeSlider');
@@ -96,12 +90,6 @@
             // スライダー変更イベント
             timeSlider.addEventListener('input', () => {
                 timeValue.textContent = +timeSlider.value;
-                updatePlot();
-            });
-
-            scaleSlider.addEventListener('input', () => {
-                scale = +scaleSlider.value;
-                scaleValue.textContent = scale.toFixed(1);
                 updatePlot();
             });
 
@@ -153,7 +141,7 @@
                         zaxis: { title: "Z Axis", range: zRange },
                         camera: currentCamera // 現在のカメラ状態を維持
                     },
-                    title: "3D Point Cloud with Adjustable Range"
+                    title: "3D Point Cloud with Fixed Magnification"
                 };
 
                 Plotly.newPlot("plot", plotData, layout).then(plot => {
